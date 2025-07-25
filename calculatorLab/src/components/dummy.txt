@@ -1,0 +1,22 @@
+Complete Blood Count (CBC),    100  
+Blood Sugar (Fasting),    80  
+Blood Sugar (Postprandial),   90  
+Lipid Profile,    250  
+Liver Function Test (LFT),   300  
+Kidney Function Test (KFT),   280  
+Thyroid Profile (T3, T4, TSH),   350  
+Hemoglobin (Hb),   60  
+Vitamin D Test,   600  
+Vitamin B12 Test,   550  
+Urine Routine Examination,   90  
+ESR (Erythrocyte Sedimentation Rate),   100  
+HIV Test,   200  
+Hepatitis B Surface Antigen (HBsAg),  300  
+Prothrombin Time (PT/INR),   250  
+C-Reactive Protein (CRP),  400  
+RA Factor (Rheumatoid Arthritis),   350  
+Blood Urea,   100  
+Serum Creatinine,    120  
+Electrolyte Panel (Na+, K+, Cl-),   200  
+
+
