@@ -8,16 +8,17 @@ import {
   TrashIcon,
   CheckIcon,
   XMarkIcon,
-  ArrowsUpDownIcon,
+  ArrowDownTrayIcon,
+  MoonIcon,
+  SunIcon,
 } from '@heroicons/react/24/outline';
 import debounce from 'lodash/debounce';
 import { gsap } from 'gsap';
+import * as htmlToImage from 'html-to-image';
 
-// Initial test options
 const initialTestOptions = [];
 
 const MedicalTestCalculator = () => {
-  // State management
   const [selectedTests, setSelectedTests] = useState([]);
   const [testOptions, setTestOptions] = useState(initialTestOptions);
   const [displayedTests, setDisplayedTests] = useState(initialTestOptions);
@@ -29,16 +30,58 @@ const MedicalTestCalculator = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [nextId, setNextId] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
-  // Refs
   const cardRef = useRef(null);
   const summaryCardRef = useRef(null);
   const searchInputRef = useRef(null);
   const totalPriceRef = useRef(null);
 
-  // Load data from localStorage
+  // Load dark mode preference from localStorage on mount
   useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem('isDarkMode');
+      if (savedTheme !== null) {
+        setIsDarkMode(JSON.parse(savedTheme));
+      }
+    } catch (error) {
+      console.error('Error loading theme:', error);
+    }
+  }, []);
+
+  // Save dark mode preference to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('isDarkMode', JSON.stringify(isDarkMode));
+    } catch (error) {
+      console.error('Error saving theme:', error);
+    }
+  }, [isDarkMode]);
+
+  const handleCaptureImage = () => {
+    if (!summaryCardRef.current) {
+      console.error('Summary card ref is null');
+      toast.error('No content to capture', { autoClose: 2000 });
+      return;
+    }
     setIsLoading(true);
+    htmlToImage
+      .toPng(summaryCardRef.current)
+      .then((dataUrl) => {
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = 'medical-test-summary.png';
+        link.click();
+        toast.success('Image downloaded successfully', { autoClose: 2000 });
+      })
+      .catch((error) => {
+        console.error('Error capturing image:', error);
+        toast.error('Failed to capture image', { autoClose: 2000 });
+      })
+      .finally(() => setIsLoading(false));
+  };
+
+  useEffect(() => {
     try {
       const storedTests = localStorage.getItem('testOptions');
       const storedSelected = localStorage.getItem('selectedTests');
@@ -55,30 +98,29 @@ const MedicalTestCalculator = () => {
       if (storedSelected) setSelectedTests(JSON.parse(storedSelected));
       if (storedNextId) setNextId(Number(storedNextId));
     } catch (error) {
+      console.error('Error loading data:', error);
       toast.error('Error loading data', { autoClose: 2000 });
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Save to localStorage
   useEffect(() => {
     try {
       localStorage.setItem('testOptions', JSON.stringify(testOptions));
       localStorage.setItem('selectedTests', JSON.stringify(selectedTests));
       localStorage.setItem('nextId', nextId.toString());
     } catch (error) {
+      console.error('Error saving data:', error);
       toast.error('Error saving data', { autoClose: 2000 });
     }
   }, [testOptions, selectedTests, nextId]);
 
-  // Calculate total price
   const totalPrice = selectedTests.reduce((total, id) => {
     const test = testOptions.find((t) => t.id === id);
     return total + (test?.price || 0);
   }, 0);
 
-  // GSAP Animation for Total Price
   useEffect(() => {
     if (totalPriceRef.current) {
       const currentText = totalPriceRef.current.innerText.replace('₹', '') || '0';
@@ -96,7 +138,6 @@ const MedicalTestCalculator = () => {
             totalPriceRef.current.innerText = `₹${Math.round(this.targets()[0].innerText)}`;
           },
           onComplete: () => {
-            // Ensure the final value is exact
             totalPriceRef.current.innerText = `₹${totalPrice}`;
           },
         }
@@ -104,12 +145,17 @@ const MedicalTestCalculator = () => {
     }
   }, [totalPrice]);
 
-  // Debounced search handler
   const handleSearchChange = debounce((value) => {
     setSearchQuery(value);
   }, 300);
 
-  // Handle checkbox toggle
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    if (searchInputRef.current) {
+      searchInputRef.current.value = '';
+    }
+  };
+
   const handleCheckboxChange = (testId) => {
     const updatedSelected = selectedTests.includes(testId)
       ? selectedTests.filter((id) => id !== testId)
@@ -120,7 +166,6 @@ const MedicalTestCalculator = () => {
     }
   };
 
-  // Add a new custom test
   const handleAddCustomTest = (newTest) => {
     const trimmedName = newTest.name.trim().toLowerCase();
     if (!trimmedName || isNaN(newTest.price) || newTest.price <= 0) {
@@ -156,14 +201,12 @@ const MedicalTestCalculator = () => {
     }
   };
 
-  // Edit test
   const handleEditTest = (test) => {
     setEditingTest(test.id);
     setEditName(test.name);
     setEditPrice(test.price.toString());
   };
 
-  // Save edited test
   const handleSaveEdit = () => {
     if (!editName.trim() || isNaN(editPrice) || Number(editPrice) <= 0) {
       toast.error('Enter valid name and price', { autoClose: 2000 });
@@ -193,14 +236,12 @@ const MedicalTestCalculator = () => {
     toast.success('Test updated', { autoClose: 2000 });
   };
 
-  // Cancel edit
   const handleCancelEdit = () => {
     setEditingTest(null);
     setEditName('');
     setEditPrice('');
   };
 
-  // Delete test
   const handleDeleteTest = (id) => setShowDeleteConfirm(id);
 
   const confirmDelete = () => {
@@ -214,13 +255,11 @@ const MedicalTestCalculator = () => {
 
   const cancelDelete = () => setShowDeleteConfirm(null);
 
-  // Clear all selected tests
   const handleClearAll = () => {
     setSelectedTests([]);
     toast.info('All tests deselected', { autoClose: 2000 });
   };
 
-  // Sort and filter tests
   useEffect(() => {
     let filtered = [...testOptions];
 
@@ -248,71 +287,273 @@ const MedicalTestCalculator = () => {
     setDisplayedTests(filtered);
   }, [testOptions, selectedTests, searchQuery, sortOption]);
 
+  const toggleTheme = () => {
+    setIsDarkMode((prev) => !prev);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 p-4 sm:p-6 md:p-8 flex flex-col items-center font-sans antialiased">
-      <header className="w-full max-w-7xl mb-8 text-center">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-blue-700">
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-teal-500">
-            MediBill
-          </span>
-        </h1>
-        <p className="text-gray-600 mt-2 text-base sm:text-lg">
-          Effortless Medical Test Billing
-        </p>
+    <div
+      className={`min-h-screen p-4 sm:p-6 md:p-8 flex flex-col items-center font-sans antialiased ${
+        isDarkMode ? 'bg-[#1A1A1A] text-white' : 'bg-gray-200 text-gray-900'
+      }`}
+    >
+      <style>
+        {`
+          .neumorphic {
+            ${isDarkMode
+              ? 'background: #2D2D2D; box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.5), -4px -4px 10px rgba(60, 60, 60, 0.2);'
+              : 'background: #e0e5ec; box-shadow: 8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff;'}
+            border-radius: 16px;
+            border: none;
+          }
+          .neumorphic-inset {
+            ${isDarkMode
+              ? 'background: #3A3A3A; box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.7), inset -2px -2px 5px rgba(60, 60, 60, 0.3);'
+              : 'background: #e0e5ec; box-shadow: inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff;'}
+            border-radius: 12px;
+            border: none;
+          }
+          .neumorphic-button {
+            ${isDarkMode
+              ? 'background: #2D2D2D; box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5), -2px -2px 5px rgba(60, 60, 60, 0.2);'
+              : 'background: #e0e5ec; box-shadow: 4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff;'}
+            border-radius: 8px;
+            transition: all 0.2s ease;
+          }
+          .neumorphic-button:hover {
+            ${isDarkMode
+              ? 'box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.7), inset -1px -1px 3px rgba(60, 60, 60, 0.3);'
+              : 'box-shadow: inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff;'}
+            transform: translateY(1px);
+          }
+          .neumorphic-button:active {
+            ${isDarkMode
+              ? 'box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.7), inset -2px -2px 5px rgba(60, 60, 60, 0.3);'
+              : 'box-shadow: inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff;'}
+            transform: translateY(2px);
+          }
+          .neumorphic-checkbox {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            min-width: 20px;
+            min-height: 20px;
+            flex-shrink: 0;
+            ${isDarkMode
+              ? 'background: #3A3A3A; box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.7), inset -2px -2px 5px rgba(60, 60, 60, 0.3);'
+              : 'background: #e0e5ec; box-shadow: inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff;'}
+            border-radius: 50%;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.3s ease;
+          }
+          .neumorphic-checkbox:checked {
+            ${isDarkMode
+              ? `
+                background: #00C4CC;
+                box-shadow: inset 2px 2px 5px #00A1A8, inset -2px -2px 5px #00E6EE,
+                            0 0 10px rgba(0, 196, 204, 0.7), 0 0 20px rgba(0, 196, 204, 0.5);
+                animation: glow 1.5s ease-in-out infinite alternate;
+              `
+              : `
+                background: #2dd4bf;
+                box-shadow: inset 2px 2px 4px #26a69a, inset -2px -2px 4px #4ff9e0;
+              `}
+          }
+          .neumorphic-checkbox:checked::after {
+            content: '✔';
+            ${isDarkMode ? 'color: #1A1A1A;' : 'color: #f1f5f9;'}
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 12px;
+          }
+          @keyframes glow {
+            from {
+              box-shadow: inset 2px 2px 5px #00A1A8, inset -2px -2px 5px #00E6EE,
+                          0 0 10px rgba(0, 196, 204, 0.7), 0 0 20px rgba(0, 196, 204, 0.5);
+            }
+            to {
+              box-shadow: inset 2px 2px 5px #00A1A8, inset -2px -2px 5px #00E6EE,
+                          0 0 15px rgba(0, 196, 204, 0.9), 0 0 30px rgba(0, 196, 204, 0.7);
+            }
+          }
+          @media (max-width: 640px) {
+            .neumorphic-checkbox {
+              width: 24px;
+              height: 24px;
+              min-width: 24px;
+              min-height: 24px;
+            }
+            .neumorphic-checkbox:checked::after {
+              font-size: 14px;
+            }
+          }
+          .input-field {
+            ${isDarkMode
+              ? 'background: #3A3A3A; box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.7), inset -2px -2px 5px rgba(60, 60, 60, 0.3); color: #fff;'
+              : 'background: #e0e5ec; box-shadow: inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff; color: #333;'}
+            border-radius: 12px;
+            padding: 8px 12px;
+            border: none;
+            width: 100%;
+          }
+          .input-field:focus {
+            outline: none;
+            ${isDarkMode
+              ? 'box-shadow: inset 1px 1px 3px #00C4CC, inset -1px -1px 3px #00E6EE;'
+              : 'box-shadow: inset 1px 1px 3px #2dd4bf, inset -1px -1px 3px #4ff9e0;'}
+          }
+          .select-field {
+            ${isDarkMode
+              ? 'background: #3A3A3A; box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.7), inset -2px -2px 5px rgba(60, 60, 60, 0.3); color: #fff;'
+              : 'background: #e0e5ec; box-shadow: inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff; color: #333;'}
+            border-radius: 12px;
+            padding: 8px 12px;
+            border: none;
+            width: 150px;
+          }
+          .select-field:focus {
+            outline: none;
+            ${isDarkMode
+              ? 'box-shadow: inset 1px 1px 3px #00C4CC, inset -1px -1px 3px #00E6EE;'
+              : 'box-shadow: inset 1px 1px 3px #2dd4bf, inset -1px -1px 3px #4ff9e0;'}
+          }
+          .search-container {
+            position: relative;
+            width: 100%;
+          }
+          .search-input {
+            ${isDarkMode
+              ? 'background: #3A3A3A; box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.7), inset -2px -2px 5px rgba(60, 60, 60, 0.3); color: #fff;'
+              : 'background: #e0e5ec; box-shadow: inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff; color: #333;'}
+            border-radius: 12px;
+            padding: 10px 40px 10px 40px;
+            border: none;
+            width: 100%;
+            font-size: 16px;
+            transition: box-shadow 0.2s ease;
+          }
+          .search-input:focus {
+            outline: none;
+            ${isDarkMode
+              ? 'box-shadow: inset 1px 1px 3px #00C4CC, inset -1px -1px 3px #00E6EE;'
+              : 'box-shadow: inset 1px 1px 3px #2dd4bf, inset -1px -1px 3px #4ff9e0;'}
+          }
+          .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            ${isDarkMode ? 'color: #A0AEC0;' : 'color: #718096;'}
+          }
+          .clear-icon {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            ${isDarkMode ? 'color: #A0AEC0;' : 'color: #718096;'}
+            cursor: pointer;
+            transition: color 0.2s ease;
+          }
+          .clear-icon:hover {
+            ${isDarkMode ? 'color: #CBD5E0;' : 'color: #4A5568;'}
+          }
+          .test-card {
+            padding: 12px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+          }
+          .test-card:hover {
+            ${isDarkMode
+              ? 'box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5), -2px -2px 5px rgba(60, 60, 60, 0.2);'
+              : 'box-shadow: 4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff;'}
+            transform: translateY(-2px);
+          }
+        `}
+      </style>
+
+      <header className="w-full max-w-7xl mb-8 flex justify-between items-center">
+        <div className="text-center flex-1">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold">
+            <span
+              className={`bg-clip-text text-transparent ${
+                isDarkMode ? 'bg-gradient-to-r from-blue-400 to-cyan-400' : 'bg-gradient-to-r from-blue-600 to-teal-500'
+              }`}
+            >
+              MediBill
+            </span>
+          </h1>
+          <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'} mt-2 text-base sm:text-lg`}>
+            Effortless Medical Test Billing
+          </p>
+        </div>
+        <button
+          onClick={toggleTheme}
+          className="neumorphic-button p-2"
+          title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        >
+          {isDarkMode ? <SunIcon className="w-6 h-6 text-yellow-400" /> : <MoonIcon className="w-6 h-6 text-gray-800" />}
+        </button>
       </header>
 
-      <div className="w-full max-w-7xl flex flex-col lg:flex-row gap-6">
-        {/* Delete Confirmation Modal */}
-        {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-xl shadow-xl border border-gray-200 w-full max-w-sm">
-              <h3 className="text-lg font-semibold text-gray-900">Confirm Deletion</h3>
-              <p className="text-gray-600 mt-2 text-sm">
-                Are you sure you want to delete this test?
-              </p>
-              <div className="flex gap-4 mt-4">
-                <button
-                  onClick={confirmDelete}
-                  className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-all"
-                >
-                  <TrashIcon className="w-5 h-5" />
-                  Delete
-                </button>
-                <button
-                  onClick={cancelDelete}
-                  className="flex items-center gap-2 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-all"
-                >
-                  <XMarkIcon className="w-5 h-5" />
-                  Cancel
-                </button>
-              </div>
+      {showDeleteConfirm && (
+        <div className={`fixed inset-0 ${isDarkMode ? 'bg-black/75' : 'bg-black/50'} flex items-center justify-center z-50`}>
+          <div className="neumorphic p-6 w-full max-w-sm">
+            <h3 className={isDarkMode ? 'text-lg font-semibold text-white' : 'text-lg font-semibold text-gray-900'}>
+              Confirm Deletion
+            </h3>
+            <p className={isDarkMode ? 'text-gray-400 mt-2 text-sm' : 'text-gray-600 mt-2 text-sm'}>
+              Are you sure you want to delete this test?
+            </p>
+            <div className="flex gap-4 mt-4">
+              <button
+                onClick={confirmDelete}
+                className={`neumorphic-button flex items-center gap-2 ${isDarkMode ? 'text-red-400' : 'text-red-600'} px-4 py-2 text-sm`}
+              >
+                <TrashIcon className="w-5 h-5" />
+                Delete
+              </button>
+              <button
+                onClick={cancelDelete}
+                className={`neumorphic-button flex items-center gap-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-800'} px-4 py-2 text-sm`}
+              >
+                <XMarkIcon className="w-5 h-5" />
+                Cancel
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Selected Tests Section */}
+      <div className="w-full max-w-7xl flex flex-col lg:flex-row gap-6">
         <div
           ref={summaryCardRef}
-          className="bg-white p-6 rounded-xl shadow-md border border-gray-100 w-full lg:w-1/2"
+          className="neumorphic p-6 w-full lg:w-1/2"
         >
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-              <CheckIcon className="w-6 h-6 text-green-600" />
+            <h2 className={isDarkMode ? 'text-xl font-semibold text-white flex items-center gap-2' : 'text-xl font-semibold text-gray-900 flex items-center gap-2'}>
+              <CheckIcon className={isDarkMode ? 'w-6 h-6 text-green-400' : 'w-6 h-6 text-green-600'} />
               Selected Tests
             </h2>
             {selectedTests.length > 0 && (
               <button
                 onClick={handleClearAll}
-                className="text-sm text-red-600 hover:text-red-800 transition-all"
+                className={`neumorphic-button text-sm ${isDarkMode ? 'text-red-400' : 'text-red-600'} px-3 py-1`}
               >
                 Clear All
               </button>
             )}
           </div>
-          {isLoading ? (
-            <p className="text-gray-500">Loading...</p>
+          {isLoading && !summaryCardRef.current ? (
+            <p className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>Loading...</p>
           ) : selectedTests.length === 0 ? (
-            <p className="text-gray-500">No tests selected</p>
+            <p className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>No tests selected</p>
           ) : (
             <div className="space-y-3">
               {selectedTests.map((id) => {
@@ -320,33 +561,41 @@ const MedicalTestCalculator = () => {
                 return (
                   <div
                     key={id}
-                    className="flex justify-between items-center p-3 bg-green-50 rounded-lg"
+                    className="neumorphic-inset flex justify-between items-center p-3"
                   >
-                    <span className="text-gray-900 font-medium">{test?.name}</span>
-                    <span className="text-gray-700 font-semibold">₹{test?.price}</span>
+                    <span className={isDarkMode ? 'text-white font-medium' : 'text-gray-900 font-medium'}>{test?.name}</span>
+                    <span className={isDarkMode ? 'text-gray-300 font-semibold' : 'text-gray-700 font-semibold'}>₹{test?.price}</span>
                   </div>
                 );
               })}
             </div>
           )}
-          <div className="mt-4 text-lg font-bold text-gray-900">
-            Total: <span ref={totalPriceRef} className="text-orange-600">₹{totalPrice}</span>
+          <div className="mt-4 flex justify-between items-center">
+            <div className={isDarkMode ? 'text-lg font-bold text-white' : 'text-lg font-bold text-gray-900'}>
+              Total: <span ref={totalPriceRef} className={isDarkMode ? 'text-green-600' : 'text-orange-600'}>₹{totalPrice}</span>
+            </div>
+            <button
+              onClick={handleCaptureImage}
+              className={`neumorphic-button ${isDarkMode ? 'text-cyan-400' : 'text-blue-600'} p-2`}
+              disabled={isLoading}
+              title="Download Summary"
+            >
+              <ArrowDownTrayIcon className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
-        {/* Test Selection and Form Section */}
         <div className="w-full lg:w-1/2 space-y-6">
-          <CustomTestForm onAddTest={handleAddCustomTest} testOptions={testOptions} />
+          <CustomTestForm onAddTest={handleAddCustomTest} testOptions={testOptions} isDarkMode={isDarkMode} />
 
-          {/* Available Tests List */}
           <div
             ref={cardRef}
-            className="bg-white p-6 rounded-xl shadow-md border border-gray-100 max-h-[60vh] overflow-y-auto"
+            className="neumorphic p-6 max-h-[60vh] overflow-y-auto"
           >
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className={isDarkMode ? 'text-xl font-semibold text-white flex items-center gap-2' : 'text-xl font-semibold text-gray-900 flex items-center gap-2'}>
                 <svg
-                  className="w-6 h-6 text-blue-600"
+                  className={isDarkMode ? 'w-6 h-6 text-cyan-400' : 'w-6 h-6 text-blue-600'}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -363,62 +612,68 @@ const MedicalTestCalculator = () => {
               <select
                 value={sortOption}
                 onChange={(e) => setSortOption(e.target.value)}
-                className="p-2 border border-gray-200 rounded-lg text-sm"
+                className="select-field"
               >
                 <option value="default">Default</option>
                 <option value="name">Sort by Name</option>
                 <option value="price">Sort by Price</option>
               </select>
             </div>
-            <div className="relative mb-4">
+            <div className="search-container mb-6">
               <input
                 type="text"
                 onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="Search tests..."
-                className="w-full p-3 pl-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="search-input"
                 ref={searchInputRef}
               />
-              <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <MagnifyingGlassIcon className="search-icon" />
+              {searchQuery && (
+                <XMarkIcon
+                  className="clear-icon"
+                  onClick={handleClearSearch}
+                />
+              )}
             </div>
             {isLoading ? (
-              <p className="text-gray-500 text-center">Loading...</p>
+              <p className={isDarkMode ? 'text-gray-400 text-center' : 'text-gray-500 text-center'}>Loading...</p>
             ) : displayedTests.length === 0 ? (
-              <p className="text-gray-500 text-center">No tests available</p>
+              <p className={isDarkMode ? 'text-gray-400 text-center' : 'text-gray-500 text-center'}>No tests available</p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {displayedTests.map((test) => (
                   <div
                     key={test.id}
-                    className={`p-3 rounded-lg border border-gray-200 flex flex-col gap-3 ${
-                      selectedTests.includes(test.id) ? 'bg-green-50' : 'bg-gray-50'
+                    className={`test-card neumorphic-inset flex items-center justify-between p-4 ${
+                      selectedTests.includes(test.id) ? (isDarkMode ? 'bg-cyan-400/10' : 'bg-green-100/50') : ''
                     }`}
                   >
                     {editingTest === test.id ? (
-                      <div className="space-y-3">
+                      <div className="w-full space-y-3">
                         <input
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
                           placeholder="Test name"
-                          className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                          className="input-field"
                         />
                         <input
                           value={editPrice}
                           onChange={(e) => setEditPrice(e.target.value)}
                           type="number"
                           placeholder="Price (₹)"
-                          className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                          className="input-field"
                         />
                         <div className="flex gap-3">
                           <button
                             onClick={handleSaveEdit}
-                            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                            className={`neumorphic-button flex items-center gap-2 ${isDarkMode ? 'text-cyan-400' : 'text-blue-600'} px-4 py-2 text-sm`}
                           >
                             <CheckIcon className="w-5 h-5" />
                             Save
                           </button>
                           <button
                             onClick={handleCancelEdit}
-                            className="flex items-center gap-2 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300"
+                            className={`neumorphic-button flex items-center gap-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-800'} px-4 py-2 text-sm`}
                           >
                             <XMarkIcon className="w-5 h-5" />
                             Cancel
@@ -426,33 +681,33 @@ const MedicalTestCalculator = () => {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-between gap-3">
+                      <div className="w-full flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 flex-1">
                           <input
                             type="checkbox"
                             checked={selectedTests.includes(test.id)}
                             onChange={() => handleCheckboxChange(test.id)}
-                            className="w-4 h-4 text-blue-600 rounded focus:ring-0"
+                            className="neumorphic-checkbox"
                           />
                           <span
                             onClick={() => handleCheckboxChange(test.id)}
-                            className="text-gray-900 font-medium text-sm cursor-pointer hover:text-blue-600"
+                            className={isDarkMode ? 'text-white font-medium text-sm cursor-pointer hover:text-cyan-400' : 'text-gray-900 font-medium text-sm cursor-pointer hover:text-blue-600'}
                           >
                             {test.name}
                           </span>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="text-gray-700 font-semibold text-sm">₹{test.price}</span>
+                          <span className={isDarkMode ? 'text-gray-300 font-semibold text-sm' : 'text-gray-700 font-semibold text-sm'}>₹{test.price}</span>
                           <button
                             onClick={() => handleEditTest(test)}
-                            className="text-blue-600 hover:text-blue-800 p-1"
+                            className={`neumorphic-button ${isDarkMode ? 'text-cyan-400' : 'text-blue-600'} p-1`}
                             aria-label={`Edit ${test.name}`}
                           >
                             <PencilSquareIcon className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => handleDeleteTest(test.id)}
-                            className="text-red-600 hover:text-red-800 p-1"
+                            className={`neumorphic-button ${isDarkMode ? 'text-red-400' : 'text-red-600'} p-1`}
                             aria-label={`Delete ${test.name}`}
                           >
                             <TrashIcon className="w-5 h-5" />
@@ -469,8 +724,8 @@ const MedicalTestCalculator = () => {
       </div>
 
       <footer className="w-full max-w-7xl mt-8 text-center">
-        <p className="text-gray-600 text-sm">
-          Built by <span className="font-semibold text-blue-700">Akash Mukherjee</span>
+        <p className={isDarkMode ? 'text-gray-400 text-sm' : 'text-gray-600 text-sm'}>
+          All rights reserved. Copyright © 2025 <span className="font-semibold text-[#ED3500]">Akash Mukherjee</span>
         </p>
       </footer>
 
@@ -484,7 +739,7 @@ const MedicalTestCalculator = () => {
         pauseOnFocusLoss
         draggable
         pauseOnHover
-        theme="light"
+        theme={isDarkMode ? 'dark' : 'light'}
       />
     </div>
   );
